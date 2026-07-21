@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Borde externo redondeado del Dashboard -->
+  <rect x="2" y="3" width="20" height="18" rx="4" />
+
+  <!-- Barras estadísticas -->
+  <line x1="6" y1="18" x2="6" y2="16" />
+  <line x1="10" y1="18" x2="10" y2="12" />
+  <line x1="14" y1="18" x2="14" y2="14" />
+  <line x1="18" y1="18" x2="18" y2="10" />
+
+  <!-- Línea de tendencia ascendente -->
+  <polyline points="6 12 10 9 14 11 18 6" />
+
+  <!-- Punto clave destacado -->
+  <circle cx="18" cy="6" r="1" fill="#F59E0B" />
+</svg>
