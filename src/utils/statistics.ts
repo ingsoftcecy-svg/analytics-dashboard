@@ -12,9 +12,52 @@ export function calculateStdDev(data: number[], mean?: number): number {
 
 export function calculateMedian(data: number[]): number {
   if (data.length === 0) return 0;
+  return calculatePercentile(data, 0.5);
+}
+
+export function calculateSkewness(data: number[], mean?: number, std?: number): number {
+  if (data.length < 3) return 0;
+  const m = mean ?? calculateMean(data);
+  const s = std ?? calculateStdDev(data, m);
+  if (s === 0) return 0;
+  
+  let sum3 = 0;
+  for (const val of data) {
+    sum3 += Math.pow((val - m) / s, 3);
+  }
+  const n = data.length;
+  // Sample skewness formula (same as Excel)
+  return (n / ((n - 1) * (n - 2))) * sum3;
+}
+
+export function calculateKurtosis(data: number[], mean?: number, std?: number): number {
+  if (data.length < 4) return 0;
+  const m = mean ?? calculateMean(data);
+  const s = std ?? calculateStdDev(data, m);
+  if (s === 0) return 0;
+  
+  let sum4 = 0;
+  for (const val of data) {
+    sum4 += Math.pow((val - m) / s, 4);
+  }
+  const n = data.length;
+  // Sample excess kurtosis formula (same as Excel)
+  const coeff1 = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3));
+  const coeff2 = (3 * Math.pow(n - 1, 2)) / ((n - 2) * (n - 3));
+  return coeff1 * sum4 - coeff2;
+}
+
+export function calculatePercentile(data: number[], p: number): number {
+  if (data.length === 0) return 0;
   const sorted = [...data].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const pos = (sorted.length - 1) * p;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
 }
 
 export function calculateCpCpk(data: number[], lsl: number, usl: number, mean?: number, std?: number) {

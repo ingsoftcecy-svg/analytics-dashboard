@@ -3,7 +3,7 @@ import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import type { DashboardData, TendenciaPoint, XRPoint, ScatterPoint, QQPoint, CorrelationMatrixData } from '../../domain/entities/DashboardData';
 import type { IDashboardRepository, DashboardFilters } from '../../domain/repositories/IDashboardRepository';
-import { calculateMean, calculateStdDev, calculateMedian, calculateCpCpk, generateHistogram } from '../../utils/statistics';
+import { calculateMean, calculateStdDev, calculateMedian, calculatePercentile, calculateCpCpk, generateHistogram, calculateSkewness, calculateKurtosis } from '../../utils/statistics';
 
 export class FirebaseDashboardRepository implements IDashboardRepository {
   async getDashboardData(filters?: DashboardFilters): Promise<DashboardData> {
@@ -174,14 +174,42 @@ export class FirebaseDashboardRepository implements IDashboardRepository {
     const hist = generateHistogram(values, Math.min(...values), Math.max(...values), 12);
     
     // Boxplot logic
-    const equipos = [...new Set(allData.map(d => d.Equipo ? `${d.Equipo} ${d['Numero de Equipo'] || ''}`.trim() : 'General'))];
+    const equipos = [...new Set(allData.map(d => d.Equipo ? `${d.Equipo} ${d['Numero de Equipo'] || ''}`.trim() : 'General'))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+      
     const boxplotSeries = equipos.map(eq => {
-      return allData
+      const rawData = allData
         .filter(d => (d.Equipo ? `${d.Equipo} ${d['Numero de Equipo'] || ''}`.trim() : 'General') === eq)
         .map(d => parseFloat(String(d.Resultado).replace(',', '.')));
+      
+      if (rawData.length === 0) return [0, 0, 0, 0, 0, 0, 0];
+      
+      const min = Math.min(...rawData);
+      const max = Math.max(...rawData);
+      const q1 = calculatePercentile(rawData, 0.25);
+      const median = calculateMedian(rawData);
+      const q3 = calculatePercentile(rawData, 0.75);
+      const mean = calculateMean(rawData);
+      const count = rawData.length;
+      
+      // format: [min, Q1, median, Q3, max, mean, count]
+      return [min, q1, median, q3, max, mean, count];
     });
-
-    const qq: QQPoint[] = values.slice(0, 100).map((v, i) => ({ q: -3 + (i * (6 / Math.min(values.length, 100))), val: v }));
+    // QQ Plot: Cuantiles teóricos vs Valores Reales
+    // 1. Ordenar los valores (tomamos una muestra representativa de hasta 100 para no saturar la gráfica si hay muchos)
+    const sortedValues = [...values].sort((a, b) => a - b);
+    const sampleSize = Math.min(sortedValues.length, 100);
+    const step = Math.max(1, Math.floor(sortedValues.length / sampleSize));
+    
+    const qq: QQPoint[] = [];
+    for (let i = 0; i < sampleSize; i++) {
+      const val = sortedValues[i * step];
+      // Probabilidad acumulada (i - 0.5) / N
+      const p = ((i + 1) - 0.5) / sampleSize;
+      // Aproximación de Tukey para la inversa de la distribución normal estándar (Z)
+      const q = 4.91 * (Math.pow(p, 0.14) - Math.pow(1 - p, 0.14));
+      qq.push({ q, val });
+    }
 
     // Cálculo real de Correlación NxN y Dispersión 1 a 1
     const scatter: ScatterPoint[] = [];
@@ -299,8 +327,8 @@ export class FirebaseDashboardRepository implements IDashboardRepository {
         max: Math.max(...values),
         desvEstandar: stdDev,
         cv: mean !== 0 ? (stdDev / Math.abs(mean)) * 100 : 0,
-        asimetria: 0,
-        curtosis: 0
+        asimetria: calculateSkewness(values, mean, stdDev),
+        curtosis: calculateKurtosis(values, mean, stdDev)
       },
       tendencia,
       xr,

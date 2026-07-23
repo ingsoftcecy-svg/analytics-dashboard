@@ -104,12 +104,27 @@ export const HistogramChart = ({ data, stats, limits, theme }: { data: Histogram
           borderRadius: [4, 4, 0, 0]
         } 
       },
-      { name: 'Curva Normal', type: 'line', smooth: true, data: data.curve, itemStyle: { color: 'var(--accent-yellow)', shadowColor: 'var(--accent-yellow)', shadowBlur: 10 }, symbol: 'none',
-        markLine: { symbol: 'none', data: [
-          { xAxis: limits.lsl.toString(), label: { formatter: `LSL ${limits.lsl.toFixed(2)}`, color: '#ef4444' }, lineStyle: { color: '#ef4444', type: 'dashed' } },
-          { xAxis: Math.round(stats.media).toString(), label: { formatter: `Media\n${stats.media.toFixed(2)}`, color: '#22c55e' }, lineStyle: { color: '#22c55e', type: 'dashed' } },
-          { xAxis: limits.usl.toString(), label: { formatter: `USL ${limits.usl.toFixed(2)}`, color: '#ef4444' }, lineStyle: { color: '#ef4444', type: 'dashed' } }
-        ]}
+      { 
+        name: 'Curva Normal', 
+        type: 'line', 
+        smooth: true, 
+        data: data.curve, 
+        color: '#facc15', // Usar HEX directamente porque Canvas no siempre lee var()
+        lineStyle: { color: '#facc15', shadowColor: '#facc15', shadowBlur: 10, width: 2 }, 
+        itemStyle: { color: '#facc15' },
+        symbol: 'none',
+        markLine: { symbol: 'none', data: (() => {
+          // Calculate fractional index for the category axis
+          const minBin = data.bins.length > 0 ? parseFloat(data.bins[0]) : 0;
+          const step = data.bins.length > 1 ? parseFloat(data.bins[1]) - minBin : 1;
+          const getIndex = (v: number) => step > 0 ? (v - minBin) / step : 0;
+
+          return [
+            { xAxis: getIndex(limits.lsl), label: { formatter: `LSL ${limits.lsl.toFixed(2)}`, color: '#ef4444' }, lineStyle: { color: '#ef4444', type: 'dashed' } },
+            { xAxis: getIndex(stats.media), label: { formatter: `Media\n${stats.media.toFixed(2)}`, color: '#22c55e' }, lineStyle: { color: '#22c55e', type: 'dashed' } },
+            { xAxis: getIndex(limits.usl), label: { formatter: `USL ${limits.usl.toFixed(2)}`, color: '#ef4444' }, lineStyle: { color: '#ef4444', type: 'dashed' } }
+          ];
+        })() }
       }
     ]
   };
@@ -124,15 +139,54 @@ export const BoxPlotChart = ({ data, theme }: { data: BoxPlotData, theme?: strin
     grid: { top: 10, right: 10, bottom: 20, left: 30 },
     xAxis: { type: 'category', data: data.labels, axisLabel: { color: '#9ca3af', fontSize: 10 } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: '#9ca3af', fontSize: 10 }, splitLine: { show: false } },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'var(--panel-bg)',
+      borderColor: 'var(--border-color)',
+      textStyle: { color: 'var(--text-main)' },
+      formatter: function (params: any) {
+        if (params.seriesType === 'boxplot') {
+          // Si echarts prepends index, los valores están desplazados por 1.
+          // Revisamos si el primer elemento coincide con el índice de params.dataIndex
+          const d = params.data;
+          let min, q1, median, q3, max, mean, count;
+          if (d.length > 6 && d[0] === params.dataIndex) {
+            [, min, q1, median, q3, max, mean, count] = d;
+          } else {
+            [min, q1, median, q3, max, mean, count] = d;
+          }
+          
+          return `
+            <div style="font-family: Inter, sans-serif; min-width: 160px;">
+              <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">
+                ${params.name}
+              </div>
+              <div style="font-size: 11px; margin-bottom: 8px; color: var(--text-muted);">
+                Muestras: <strong>${count ?? '-'}</strong>
+              </div>
+              <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+                <tr><td style="padding: 2px 0;">Máx:</td><td style="text-align: right; font-weight: 500;">${max?.toFixed(2) ?? '-'}</td></tr>
+                <tr><td style="padding: 2px 0;">Q3 (75%):</td><td style="text-align: right; font-weight: 500;">${q3?.toFixed(2) ?? '-'}</td></tr>
+                <tr><td style="padding: 2px 0; color: #ef4444;">Mediana:</td><td style="text-align: right; font-weight: 600; color: #ef4444;">${median?.toFixed(2) ?? '-'}</td></tr>
+                <tr><td style="padding: 2px 0; color: #3b82f6;">Promedio:</td><td style="text-align: right; font-weight: 600; color: #3b82f6;">${mean?.toFixed(2) ?? '-'}</td></tr>
+                <tr><td style="padding: 2px 0;">Q1 (25%):</td><td style="text-align: right; font-weight: 500;">${q1?.toFixed(2) ?? '-'}</td></tr>
+                <tr><td style="padding: 2px 0;">Mín:</td><td style="text-align: right; font-weight: 500;">${min?.toFixed(2) ?? '-'}</td></tr>
+              </table>
+            </div>
+          `;
+        }
+        return '';
+      }
+    },
     series: [{
       type: 'boxplot',
       data: data.series,
-      itemStyle: { color: 'transparent', borderColor: accentColor },
-      boxWidth: [10, 20],
-      markPoint: {
-        symbol: 'circle', symbolSize: 4, itemStyle: { color: '#ef4444' },
-        data: [{ name: 'Outlier', xAxis: 2, yAxis: 21.2 }] 
-      }
+      itemStyle: { 
+        color: 'transparent', // Make the box body transparent
+        borderColor: accentColor,
+        borderWidth: 2
+      },
+      boxWidth: [15, 25],
     }]
   };
   return <ReactECharts option={option} style={{ height: '220px', width: '100%' }} />;
@@ -143,6 +197,37 @@ export const ScatterPlotChart = ({ data, indicadorX, indicadorY, theme }: { data
   const accentColor = theme === 'light' ? '#2563eb' : '#3b82f6';
   const xName = indicadorX || 'Indicador X';
   const yName = indicadorY || 'Indicador Y';
+  
+  let r = 0;
+  let trendlineData: number[][] = [];
+  
+  if (data.length > 1) {
+    const meanX = data.reduce((sum, p) => sum + p.x, 0) / data.length;
+    const meanY = data.reduce((sum, p) => sum + p.y, 0) / data.length;
+    let num = 0;
+    let denX = 0;
+    let denY = 0;
+    data.forEach(p => {
+      const dx = p.x - meanX;
+      const dy = p.y - meanY;
+      num += dx * dy;
+      denX += dx * dx;
+      denY += dy * dy;
+    });
+    if (denX > 0 && denY > 0) {
+      r = num / Math.sqrt(denX * denY);
+      const m = num / denX;
+      const b = meanY - m * meanX;
+      
+      const minX = Math.min(...data.map(p => p.x));
+      const maxX = Math.max(...data.map(p => p.x));
+      trendlineData = [
+        [minX, m * minX + b],
+        [maxX, m * maxX + b]
+      ];
+    }
+  }
+
   const option = {
     ...commonOptions,
     grid: { top: 10, right: 60, bottom: 40, left: 40 },
@@ -150,7 +235,14 @@ export const ScatterPlotChart = ({ data, indicadorX, indicadorY, theme }: { data
     yAxis: { type: 'value', scale: true, axisLabel: { color: '#9ca3af', fontSize: 10 }, splitLine: { show: false }, name: yName, nameLocation: 'middle', nameGap: 25, nameTextStyle: {color: '#9ca3af', fontSize: 10} },
     series: [
       { type: 'scatter', data: data.map(p => [p.x, p.y]), itemStyle: { color: accentColor }, symbolSize: 5 },
-      { type: 'line', data: [[500, 11], [700, 21]], markPoint: { symbol: 'none', label: { formatter: 'r = 0.82', position: 'right', color: 'var(--text-muted)', fontSize: 10 } }, itemStyle: { color: 'var(--accent-red)' } }
+      ...(trendlineData.length > 0 ? [{ 
+        type: 'line', 
+        data: trendlineData, 
+        endLabel: { show: true, formatter: `r = ${r.toFixed(2)}`, color: 'var(--text-main)', fontSize: 10 }, 
+        itemStyle: { color: 'var(--accent-red)' },
+        lineStyle: { type: 'dashed' },
+        symbol: 'none'
+      }] : [])
     ]
   };
   return <ReactECharts option={option} style={{ height: '220px', width: '100%' }} />;
@@ -160,6 +252,21 @@ export const ScatterPlotChart = ({ data, indicadorX, indicadorY, theme }: { data
 export const QQPlotChart = ({ data, unit, theme }: { data: QQPoint[], unit?: string, theme?: string }) => {
   const accentColor = theme === 'light' ? '#2563eb' : '#3b82f6';
   const yAxisName = unit ? `Tiempo (${unit})` : 'Tiempo';
+  
+  let refLine: number[][] = [];
+  if (data.length > 1) {
+    const mean = data.reduce((sum, p) => sum + p.val, 0) / data.length;
+    const variance = data.reduce((sum, p) => sum + Math.pow(p.val - mean, 2), 0) / (data.length - 1);
+    const std = Math.sqrt(variance);
+    
+    // Theoretical line: y = mean + std * Z
+    // Z typically ranges from -3 to 3 for standard normal quantiles
+    refLine = [
+      [-3, mean - 3 * std],
+      [3, mean + 3 * std]
+    ];
+  }
+
   const option = {
     ...commonOptions,
     grid: { top: 10, right: 10, bottom: 40, left: 40 },
@@ -167,7 +274,13 @@ export const QQPlotChart = ({ data, unit, theme }: { data: QQPoint[], unit?: str
     yAxis: { type: 'value', scale: true, axisLabel: { color: '#9ca3af', fontSize: 10 }, splitLine: { show: false }, name: yAxisName, nameLocation: 'middle', nameGap: 25, nameTextStyle: {color: '#9ca3af', fontSize: 10} },
     series: [
       { type: 'scatter', data: data.map(p => [p.q, p.val]), itemStyle: { color: accentColor }, symbolSize: 5 },
-      { type: 'line', data: [[-3, 11], [3, 21]], itemStyle: { color: 'var(--accent-red)' } }
+      ...(refLine.length > 0 ? [{ 
+        type: 'line', 
+        data: refLine, 
+        itemStyle: { color: 'var(--accent-red)' },
+        lineStyle: { type: 'dashed', width: 2 },
+        symbol: 'none'
+      }] : [])
     ]
   };
   return <ReactECharts option={option} style={{ height: '220px', width: '100%' }} />;

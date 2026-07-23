@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import './App.css';
-import { Filter, LogOut, Upload, Sun, Moon } from 'lucide-react';
+import { Filter, LogOut, Upload, Sun, Moon, Maximize2, X } from 'lucide-react';
 import { TendenciaChart, XChart, RChart, HistogramChart, BoxPlotChart, ScatterPlotChart, QQPlotChart } from './components/Charts';
 import { useDashboardData } from './presentation/hooks/useDashboardData';
 import { FirebaseDashboardRepository } from './data/repositories/FirebaseDashboardRepository';
@@ -37,8 +37,8 @@ function App() {
   const [marcaFilter, setMarcaFilter] = useState('Todas');
   const [etapaFilter, setEtapaFilter] = useState('Todas');
   const [puestoFilter, setPuestoFilter] = useState('Todos');
-  const [productoFilter, setProductoFilter] = useState('Todos');
-  const [fermentadorFilter, setFermentadorFilter] = useState('Todos');
+  //const [productoFilter, setProductoFilter] = useState('Todos');
+  //const [fermentadorFilter, setFermentadorFilter] = useState('Todos');
 
   const [theme, setTheme] = useState<'dark'|'light'>(() => {
     return (localStorage.getItem('brewman-theme') as 'dark'|'light') || 'light';
@@ -56,6 +56,8 @@ function App() {
   const [appliedLCL_X, setAppliedLCL_X] = useState<number | undefined>(undefined);
   const [appliedUCL_R, setAppliedUCL_R] = useState<number | undefined>(undefined);
   const [appliedLCL_R, setAppliedLCL_R] = useState<number | undefined>(undefined);
+  const [expandedChart, setExpandedChart] = useState<{ id: string, title: string } | null>(null);
+  const [matrizFiltro, setMatrizFiltro] = useState<string>('Todos');
 
   useEffect(() => {
     document.body.classList.toggle('light-mode', theme === 'light');
@@ -80,8 +82,8 @@ function App() {
     marca: marcaFilter,
     etapa: etapaFilter,
     puesto: puestoFilter,
-    producto: productoFilter,
-    fermentador: fermentadorFilter,
+   // producto: productoFilter,
+    //fermentador: fermentadorFilter,
     planta: 'Planta 1',
     customLSL: appliedLSL,
     customUSL: appliedUSL,
@@ -172,6 +174,102 @@ function App() {
     signOut(auth);
   };
 
+
+  const renderCorrelationMatrix = (maxHeight: string = '100%') => {
+    const labels = data.correlations?.labels || [];
+    const matrix = data.correlations?.matrix || [];
+    
+    // Determine which columns to show
+    const colIndicesToShow = matrizFiltro === 'Todos' 
+      ? labels.map((_, i) => i) 
+      : labels.map((l, i) => l === matrizFiltro ? i : -1).filter(i => i !== -1);
+
+    return (
+    <div style={{ overflow: 'auto', maxHeight, width: '100%', height: '100%' }}>
+       <table className="corr-table" style={{ borderCollapse: 'collapse', fontSize: '11px', width: 'max-content', minWidth: '100%' }}>
+         <thead>
+           <tr>
+             <th style={{ position: 'sticky', top: 0, left: 0, zIndex: 2, background: 'var(--panel-bg)', borderBottom: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}></th>
+             {colIndicesToShow.map((colIdx) => (
+               <th key={colIdx} style={{ position: 'sticky', top: 0, background: 'var(--panel-bg)', padding: '6px 10px', textAlign: 'center', fontWeight: 500, zIndex: 1, borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                 {labels[colIdx]}
+               </th>
+             ))}
+           </tr>
+         </thead>
+         <tbody>
+           {matrix.length > 0 ? (
+             matrix.map((row, i) => (
+               <tr key={i}>
+                 <td style={{ position: 'sticky', left: 0, background: 'var(--panel-bg)', fontWeight: 500, color: 'var(--text-main)', borderRight: '1px solid var(--border-color)', padding: '6px 10px', zIndex: 1, whiteSpace: 'nowrap' }}>
+                   {labels[i]}
+                 </td>
+                 {colIndicesToShow.map((colIdx) => {
+                   const val = row[colIdx];
+                   return (
+                     <td key={colIdx} style={{ 
+                       backgroundColor: val !== null ? getColorForCorr(val) : 'var(--bg-color)', 
+                       color: val !== null && Math.abs(val) > 0.5 ? '#fff' : 'var(--text-main)',
+                       textAlign: 'center',
+                       padding: '6px',
+                       minWidth: '50px',
+                       border: '1px solid rgba(128,128,128,0.1)'
+                     }}>
+                       {val !== null ? val.toFixed(2) : '-'}
+                     </td>
+                   );
+                 })}
+               </tr>
+             ))
+           ) : (
+             <tr>
+               <td colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                 Sube un archivo de Excel con datos para ver la matriz de correlación.
+               </td>
+             </tr>
+           )}
+         </tbody>
+       </table>
+       
+       {/* Color Bar Legend - Solo mostrar si hay datos */}
+       {data.correlations?.labels?.length > 0 && (
+         <div style={{ marginTop: '20px', padding: '0 10px' }}>
+           <div style={{ height: '6px', background: 'linear-gradient(to right, rgba(37, 99, 235, 1), #ffffff 50%, rgba(220, 38, 38, 1))', borderRadius: '3px', marginBottom: '6px' }}></div>
+           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-main)', fontWeight: 500 }}>
+             <span>-1.00</span>
+             <span>0.00</span>
+             <span>1.00</span>
+           </div>
+         </div>
+       )}
+    </div>
+  );
+};
+
+  const renderExpandedChart = () => {
+    if (!expandedChart || !data) return null;
+    switch (expandedChart.id) {
+      case 'tendencia':
+        return <TendenciaChart data={data.tendencia} stats={data.stats} limits={data.limits} theme={theme} />;
+      case 'xbar':
+        return <XChart data={data.xr} kpis={data.kpis} limits={data.limits} theme={theme} />;
+      case 'rbar':
+        return <RChart data={data.xr} kpis={data.kpis} limits={data.limits} theme={theme} />;
+      case 'scatter':
+        return <ScatterPlotChart data={data.scatter} indicadorX={indicadorFilter} indicadorY={indicadorCorrelacion} theme={theme} />;
+      case 'histogram':
+        return <HistogramChart data={data.histogram} stats={data.stats} limits={data.limits} theme={theme} />;
+      case 'qqplot':
+        return <QQPlotChart data={data.qq} unit={unit} theme={theme} />;
+      case 'boxplot':
+        return <BoxPlotChart data={data.boxplot} theme={theme} />;
+      case 'matrix':
+        return renderCorrelationMatrix();
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -190,10 +288,7 @@ function App() {
               <Upload size={14} /> Subir Excel
             </button>
             <button className="filter-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title="Cambiar Tema" style={{ color: 'var(--header-text)', borderColor: 'var(--header-muted)' }}>
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />} Tema
-            </button>
-            <button className="filter-btn" style={{ color: 'var(--header-text)', borderColor: 'var(--header-muted)' }}>
-              <Filter size={14} /> Filtros
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
             <button className="filter-btn" onClick={handleLogout} style={{ color: '#ef4444', borderColor: '#ef4444' }}>
               <LogOut size={14} /> Salir
@@ -268,6 +363,7 @@ function App() {
               {renderOptionsTodos(data?.options?.puestos)}
             </select>
           </div>
+          {/*}
           <div className="filter-group">
             <label>Producto</label>
             <select value={productoFilter} onChange={(e) => setProductoFilter(e.target.value)}>
@@ -279,7 +375,7 @@ function App() {
             <select value={fermentadorFilter} onChange={(e) => setFermentadorFilter(e.target.value)}>
               {renderOptionsTodos(data?.options?.fermentadores)}
             </select>
-          </div>
+          </div>*/}
           <div className="filter-group" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px' }}>
             <input type="date" defaultValue="2024-05-01" />
             <input type="date" defaultValue="2024-05-31" />
@@ -299,23 +395,23 @@ function App() {
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Cp</span>
-          <span className="kpi-value">{data.kpis.cp.toFixed(2)}</span>
+          <span className="kpi-value" style={{ color: getCapabilityStatus(data.kpis.cp).textColor }}>{data.kpis.cp.toFixed(2)}</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Cpk</span>
-          <span className="kpi-value">{data.kpis.cpk.toFixed(2)}</span>
+          <span className="kpi-value" style={{ color: getCapabilityStatus(data.kpis.cpk).textColor }}>{data.kpis.cpk.toFixed(2)}</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Pp</span>
-          <span className="kpi-value">{data.kpis.pp.toFixed(2)}</span>
+          <span className="kpi-value" style={{ color: getCapabilityStatus(data.kpis.pp).textColor }}>{data.kpis.pp.toFixed(2)}</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">Ppk</span>
-          <span className="kpi-value neutral">{data.kpis.ppk.toFixed(2)}</span>
+          <span className="kpi-value" style={{ color: getCapabilityStatus(data.kpis.ppk).textColor }}>{data.kpis.ppk.toFixed(2)}</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">% Fuera de Esp.</span>
-          <span className="kpi-value">{data.kpis.fueraEsp.toFixed(2)}%</span>
+          <span className="kpi-value" style={{ color: data.kpis.fueraEsp === 0 ? 'var(--accent-green-bright)' : '#ef4444' }}>{data.kpis.fueraEsp.toFixed(2)}%</span>
         </div>
         <div className="kpi-item">
           <span className="kpi-label">N° de Muestras</span>
@@ -333,11 +429,12 @@ function App() {
             <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>1. TENDENCIA</span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input type="number" value={lslInput} onChange={e => setLslInput(e.target.value)} placeholder="LSL (Min)" title="Límite Inferior (LSL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
-                <input type="number" value={uslInput} onChange={e => setUslInput(e.target.value)} placeholder="USL (Max)" title="Límite Superior (USL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
+                <input type="number" value={lslInput} onChange={e => setLslInput(e.target.value)} placeholder="LSL" title="Límite Inferior (LSL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
+                <input type="number" value={uslInput} onChange={e => setUslInput(e.target.value)} placeholder="USL" title="Límite Superior (USL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
                 <button className="filter-btn" onClick={() => { setAppliedLSL(lslInput ? Number(lslInput) : undefined); setAppliedUSL(uslInput ? Number(uslInput) : undefined); }} style={{ color: 'var(--accent-green)', borderColor: 'var(--accent-green)', height: '24px', fontSize: '11px', padding: '0 8px', margin: 0 }}>
                   Aplicar
                 </button>
+                <button className="expand-btn" onClick={() => setExpandedChart({ id: 'tendencia', title: '1. TENDENCIA' })} title="Expandir gráfica"><Maximize2 size={16} /></button>
               </div>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', marginTop: '4px' }}>{indicadorFilter} {unit ? `(${unit})` : ''} vs Lote</div>
@@ -349,27 +446,33 @@ function App() {
           {/* 2. GRÁFICA X - R */}
           <div className="panel">
             <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>2. CARTA X̄ (Promedios)</span>
+              <span>2. GRÁFICA X̄ - R</span>
+              
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input type="number" value={lclXInput} onChange={e => setLclXInput(e.target.value)} placeholder="LCL" title="Límite Control Inferior (X)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '55px' }} />
                 <input type="number" value={uclXInput} onChange={e => setUclXInput(e.target.value)} placeholder="UCL" title="Límite Control Superior (X)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '55px' }} />
                 <button className="filter-btn" onClick={() => { setAppliedLCL_X(lclXInput ? Number(lclXInput) : undefined); setAppliedUCL_X(uclXInput ? Number(uclXInput) : undefined); }} style={{ color: 'var(--accent-green)', borderColor: 'var(--accent-green)', height: '24px', fontSize: '11px', padding: '0 8px', margin: 0, marginLeft: '4px' }}>
                   Aplicar
                 </button>
+                <button className="expand-btn" onClick={() => setExpandedChart({ id: 'xbar', title: '2. GRÁFICA X̄ - R' })} title="Expandir gráfica"><Maximize2 size={16} /></button>
               </div>
+              
             </div>
             <div className="panel-content" id="x-chart">
+              <h2 style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, textTransform: 'none' }}>Carta X̄ (Promedios)</h2>
               <XChart data={data.xr} kpis={data.kpis} limits={data.limits} theme={theme} />
             </div>
+            
 
             <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-              <span>CARTA R (Rangos)</span>
+              <h2 style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, textTransform: 'none' }}>Carta R (Rangos)</h2>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input type="number" value={lclRInput} onChange={e => setLclRInput(e.target.value)} placeholder="LCL" title="Límite Control Inferior (R)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '55px' }} />
                 <input type="number" value={uclRInput} onChange={e => setUclRInput(e.target.value)} placeholder="UCL" title="Límite Control Superior (R)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '55px' }} />
                 <button className="filter-btn" onClick={() => { setAppliedLCL_R(lclRInput ? Number(lclRInput) : undefined); setAppliedUCL_R(uclRInput ? Number(uclRInput) : undefined); }} style={{ color: 'var(--accent-green)', borderColor: 'var(--accent-green)', height: '24px', fontSize: '11px', padding: '0 8px', margin: 0, marginLeft: '4px' }}>
                   Aplicar
                 </button>
+                <button className="expand-btn" onClick={() => setExpandedChart({ id: 'rbar', title: 'CARTA R (Rangos)' })} title="Expandir gráfica"><Maximize2 size={16} /></button>
               </div>
             </div>
             <div className="panel-content" id="r-chart">
@@ -379,7 +482,10 @@ function App() {
 
           {/* 8. DISPERSIÓN */}
           <div className="panel">
-            <div className="panel-header">8. CORRELACIÓN: {indicadorFilter.toUpperCase()} vs {indicadorCorrelacion.toUpperCase()}</div>
+            <div className="panel-header">
+              <span>8. Dispersión: {indicadorFilter.toUpperCase()} vs {indicadorCorrelacion.toUpperCase()}</span>
+              <button className="expand-btn" onClick={() => setExpandedChart({ id: 'scatter', title: `8. DISPERSIÓN: ${indicadorFilter.toUpperCase()} vs ${indicadorCorrelacion.toUpperCase()}` })}><Maximize2 size={16} /></button>
+            </div>
             <div className="panel-content" id="dispersion-chart">
                <ScatterPlotChart data={data.scatter} indicadorX={indicadorFilter} indicadorY={indicadorCorrelacion} theme={theme} />
             </div>
@@ -390,7 +496,17 @@ function App() {
         <div className="col">
           {/* 3. HISTOGRAMA */}
           <div className="panel">
-            <div className="panel-header">3. HISTOGRAMA + CURVA NORMAL</div>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>3. HISTOGRAMA + CURVA NORMAL</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="number" value={lslInput} onChange={e => setLslInput(e.target.value)} placeholder="LSL" title="Límite Inferior (LSL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
+                <input type="number" value={uslInput} onChange={e => setUslInput(e.target.value)} placeholder="USL" title="Límite Superior (USL)" style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', width: '70px' }} />
+                <button className="filter-btn" onClick={() => { setAppliedLSL(lslInput ? Number(lslInput) : undefined); setAppliedUSL(uslInput ? Number(uslInput) : undefined); }} style={{ color: 'var(--accent-green)', borderColor: 'var(--accent-green)', height: '24px', fontSize: '11px', padding: '0 8px', margin: 0 }}>
+                  Aplicar
+                </button>
+                <button className="expand-btn" onClick={() => setExpandedChart({ id: 'histogram', title: '3. HISTOGRAMA + CURVA NORMAL' })} title="Expandir gráfica"><Maximize2 size={16} /></button>
+              </div>
+            </div>
             <div className="panel-content" id="histogram-chart">
                <HistogramChart data={data.histogram} stats={data.stats} limits={data.limits} theme={theme} />
             </div>
@@ -454,7 +570,10 @@ function App() {
 
           {/* 9. CURVA NORMAL */}
           <div className="panel">
-            <div className="panel-header">9. CURVA NORMAL DE PROBABILIDAD</div>
+            <div className="panel-header">
+              <span>9. CURVA NORMAL DE PROBABILIDAD</span>
+              <button className="expand-btn" onClick={() => setExpandedChart({ id: 'qqplot', title: '9. CURVA NORMAL DE PROBABILIDAD' })}><Maximize2 size={16} /></button>
+            </div>
             <div className="panel-content" id="qq-chart">
                <QQPlotChart data={data.qq} unit={unit} theme={theme} />
             </div>
@@ -465,7 +584,10 @@ function App() {
         <div className="col">
           {/* 6. BOX PLOT */}
           <div className="panel">
-            <div className="panel-header">6. BOX PLOT POR OLLA</div>
+            <div className="panel-header">
+              <span>6. BOX PLOT POR OLLA</span>
+              <button className="expand-btn" onClick={() => setExpandedChart({ id: 'boxplot', title: '6. BOX PLOT POR OLLA' })}><Maximize2 size={16} /></button>
+            </div>
             <div className="panel-content" id="boxplot-chart">
                <BoxPlotChart data={data.boxplot} theme={theme} />
             </div>
@@ -473,61 +595,22 @@ function App() {
 
           {/* 7. MATRIZ DE CORRELACIONES */}
           <div className="panel">
-            <div className="panel-header">7. MATRIZ DE CORRELACIONES</div>
-            <div className="panel-content" style={{ overflow: 'auto', maxHeight: '350px' }}>
-               <table className="corr-table" style={{ borderCollapse: 'collapse', fontSize: '11px', width: 'max-content', minWidth: '100%' }}>
-                 <thead>
-                   <tr>
-                     <th style={{ position: 'sticky', top: 0, left: 0, zIndex: 2, background: 'var(--panel-bg)', borderBottom: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}></th>
-                     {data.correlations?.labels?.map((label, i) => (
-                       <th key={i} style={{ position: 'sticky', top: 0, background: 'var(--panel-bg)', padding: '6px 10px', textAlign: 'center', fontWeight: 500, zIndex: 1, borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                         {label}
-                       </th>
-                     ))}
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {data.correlations?.matrix?.length > 0 ? (
-                     data.correlations.matrix.map((row, i) => (
-                       <tr key={i}>
-                         <td style={{ position: 'sticky', left: 0, background: 'var(--panel-bg)', fontWeight: 500, color: 'var(--text-main)', borderRight: '1px solid var(--border-color)', padding: '6px 10px', zIndex: 1, whiteSpace: 'nowrap' }}>
-                           {data.correlations.labels[i]}
-                         </td>
-                         {row.map((val, j) => (
-                           <td key={j} style={{ 
-                             backgroundColor: val !== null ? getColorForCorr(val) : 'var(--bg-color)', 
-                             color: val !== null && Math.abs(val) > 0.5 ? '#fff' : 'var(--text-main)',
-                             textAlign: 'center',
-                             padding: '6px',
-                             minWidth: '50px',
-                             border: '1px solid rgba(128,128,128,0.1)'
-                           }}>
-                             {val !== null ? val.toFixed(2) : '-'}
-                           </td>
-                         ))}
-                       </tr>
-                     ))
-                   ) : (
-                     <tr>
-                       <td colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                         Sube un archivo de Excel con datos para ver la matriz de correlación.
-                       </td>
-                     </tr>
-                   )}
-                 </tbody>
-               </table>
-               
-               {/* Color Bar Legend - Solo mostrar si hay datos */}
-               {data.correlations?.labels?.length > 0 && (
-                 <div style={{ marginTop: '20px', padding: '0 10px' }}>
-                   <div style={{ height: '6px', background: 'linear-gradient(to right, rgba(37, 99, 235, 1), #ffffff 50%, rgba(220, 38, 38, 1))', borderRadius: '3px', marginBottom: '6px' }}></div>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-main)', fontWeight: 500 }}>
-                     <span>-1.00</span>
-                     <span>0.00</span>
-                     <span>1.00</span>
-                   </div>
-                 </div>
-               )}
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>7. MATRIZ DE CORRELACIONES</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select 
+                  value={matrizFiltro} 
+                  onChange={(e) => setMatrizFiltro(e.target.value)}
+                  style={{ height: '24px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-main)', padding: '0 8px', maxWidth: '150px' }}
+                >
+                  <option value="Todos">Todos</option>
+                  {data?.options?.indicadores?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <button className="expand-btn" onClick={() => setExpandedChart({ id: 'matrix', title: '7. MATRIZ DE CORRELACIONES' })} title="Expandir gráfica"><Maximize2 size={16} /></button>
+              </div>
+            </div>
+            <div className="panel-content">
+               {renderCorrelationMatrix('350px')}
             </div>
           </div>
 
@@ -564,6 +647,22 @@ function App() {
         </div>
       </div>
 
+      {/* Expanded Chart Modal */}
+      {expandedChart && (
+        <div className="modal-overlay" onClick={() => setExpandedChart(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">{expandedChart.title}</span>
+              <button className="modal-close" onClick={() => setExpandedChart(null)}>
+                <X size={24} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {renderExpandedChart()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
