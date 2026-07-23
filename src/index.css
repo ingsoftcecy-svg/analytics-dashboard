@@ -1,16 +1,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+body.light-mode {
+  --bg-color: #f3f4f6; /* Fondo gris claro estilo screenshot */
+  --panel-bg: #ffffff;
+  --border-color: #e5e7eb;
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  
+  --accent-green: #16a34a;
+  --accent-green-bright: #22c55e;
+  --accent-red: #dc2626;
+  --accent-blue: #1e3a8a; /* Azul marino profundo (sidebar en la imagen) */
+  --accent-yellow: #facc15; /* Acento amarillo */
+  
+  --header-bg: #1e3a8a;
+  --header-text: #ffffff;
+  --header-muted: #93c5fd;
+}
+
 :root {
   --bg-color: #0b0f19;
-  --panel-bg: #151b2b;
-  --border-color: #2a3441;
-  --text-main: #f3f4f6;
-  --text-muted: #9ca3af;
+  --panel-bg: rgba(21, 27, 43, 0.7);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
   --accent-green: #22c55e;
   --accent-green-bright: #4ade80;
   --accent-red: #ef4444;
   --accent-blue: #3b82f6;
-  --accent-yellow: #eab308;
+  --accent-yellow: #facc15;
+  
+  --header-bg: transparent;
+  --header-text: var(--text-main);
+  --header-muted: var(--text-muted);
   
   --font-family: 'Inter', system-ui, sans-serif;
 }
@@ -24,13 +46,22 @@
 body {
   font-family: var(--font-family);
   background: 
-    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.06), transparent 40%),
-    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.06), transparent 40%),
+    radial-gradient(circle at 15% 50%, rgba(250, 204, 21, 0.03), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.04), transparent 40%),
     var(--bg-color);
   background-attachment: fixed;
   color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+body.light-mode {
+  background: 
+    radial-gradient(circle at 15% 50%, rgba(234, 179, 8, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(100, 116, 139, 0.05), transparent 40%),
+    var(--bg-color);
+  background-attachment: fixed;
 }
 
 /* Custom Scrollbar */

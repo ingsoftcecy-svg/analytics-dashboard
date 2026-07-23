@@ -55,18 +55,32 @@ export interface QQPoint {
   val: number; // Attenuation
 }
 
-export interface CorrelationRow {
-  variable: string;
-  ph: number;
-  temp: number;
-  fan: number;
-  o2: number;
-  tiempo: number;
-  atenuacion: number;
-  esteres: number;
+export interface CorrelationMatrixData {
+  labels: string[];
+  matrix: (number | null)[][];
+}
+
+export interface ChartLimits {
+  lsl: number;
+  usl: number;
+  ucl_x: number;
+  lcl_x: number;
+  ucl_r: number;
+  lcl_r: number;
 }
 
 export interface DashboardData {
+  options?: {
+    areas: string[];
+    indicadores: string[];
+    procesos: string[];
+    marcas: string[];
+    etapas: string[];
+    puestos: string[];
+    productos: string[];
+    fermentadores: string[];
+  };
+  unit?: string;
   kpis: KPIData;
   stats: DescriptiveStats;
   tendencia: TendenciaPoint[];
@@ -75,5 +89,6 @@ export interface DashboardData {
   boxplot: BoxPlotData;
   scatter: ScatterPoint[];
   qq: QQPoint[];
-  correlations: CorrelationRow[];
+  correlations: CorrelationMatrixData;
+  limits: ChartLimits;
 }
